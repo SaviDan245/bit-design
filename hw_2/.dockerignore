@@ -1,0 +1,5 @@
+target
+screenshots
+README.md
+docker-compose.yml
+build_and_push.sh
