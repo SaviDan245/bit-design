@@ -1,0 +1,28 @@
+#!/bin/bash
+
+APP_DIR={{ app_dir }}
+PID_FILE=$APP_DIR/app.pid
+LOG_FILE=$APP_DIR/logs/app.log
+
+cd $APP_DIR
+
+if [ -f $PID_FILE ] && kill -0 $(cat $PID_FILE) 2>/dev/null; then
+    echo "Приложение уже запущено, PID $(cat $PID_FILE)"
+    exit 0
+fi
+
+if [ ! -f $APP_DIR/app.jar ]; then
+    echo "Ошибка: не найден $APP_DIR/app.jar"
+    exit 1
+fi
+
+nohup java -jar $APP_DIR/app.jar > $LOG_FILE 2>&1 < /dev/null &
+echo $! > $PID_FILE
+
+sleep 1
+if ! kill -0 $(cat $PID_FILE) 2>/dev/null; then
+    echo "Ошибка: приложение не запустилось, лог в $LOG_FILE"
+    exit 1
+fi
+
+echo "Приложение запущено, PID $(cat $PID_FILE)"

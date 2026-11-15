@@ -1,0 +1,25 @@
+- name: Подготовка серверов
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Установка python3
+      ansible.builtin.raw: test -e /usr/bin/python3 || (apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3)
+      register: python_install
+      changed_when: "'Setting up python3' in python_install.stdout"
+
+- name: Деплой приложения
+  hosts: app
+  become: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  roles:
+    - app
+
+- name: Установка и настройка nginx
+  hosts: web
+  become: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  roles:
+    - nginx

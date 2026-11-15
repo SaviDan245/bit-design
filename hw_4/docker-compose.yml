@@ -1,0 +1,64 @@
+services:
+  ansible-master:
+    build:
+      context: .
+      dockerfile: docker/ansible/Dockerfile
+    image: lab-ansible-master:1.0.0
+    container_name: ansible-master
+    hostname: ansible-master
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./ansible:/ansible
+      - ssh-keys:/keys
+    networks:
+      - lab
+
+  web-server:
+    build: ./docker/node
+    image: lab-node:1.0.0
+    container_name: web-server
+    hostname: web-server
+    ports:
+      - "80:80"
+    volumes:
+      - ssh-keys:/keys:ro
+    networks:
+      - lab
+
+  app-server:
+    build: ./docker/node
+    image: lab-node:1.0.0
+    container_name: app-server
+    hostname: app-server
+    volumes:
+      - ssh-keys:/keys:ro
+    networks:
+      - lab
+
+  db:
+    image: postgres:16-alpine
+    container_name: db
+    hostname: db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - lab
+
+networks:
+  lab:
+
+volumes:
+  ssh-keys:
+  pgdata:

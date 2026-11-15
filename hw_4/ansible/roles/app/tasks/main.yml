@@ -1,0 +1,114 @@
+- name: Проверка операционной системы
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "Ubuntu"
+      - ansible_distribution_major_version | int >= 22
+    fail_msg: "Поддерживается только Ubuntu 22.04 и новее, на сервере {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+- name: Проверка оперативной памяти
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb >= min_memory_mb
+    fail_msg: "Недостаточно памяти: {{ ansible_memtotal_mb }} МБ, нужно {{ min_memory_mb }} МБ"
+
+- name: Получение свободного места на диске
+  ansible.builtin.command: df -m --output=avail /
+  register: disk_free
+  changed_when: false
+
+- name: Проверка свободного места на диске
+  ansible.builtin.assert:
+    that:
+      - disk_free.stdout_lines[1] | int >= min_disk_mb
+    fail_msg: "Недостаточно места на диске: {{ disk_free.stdout_lines[1] | trim }} МБ, нужно {{ min_disk_mb }} МБ"
+
+- name: Проверка переменных для подключения к базе данных
+  ansible.builtin.assert:
+    that:
+      - db_name | length > 0
+      - db_user | length > 0
+      - db_password | length > 0
+    fail_msg: "Не заданы переменные POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD"
+
+- name: Проверка доступности базы данных
+  ansible.builtin.wait_for:
+    host: "{{ db_host }}"
+    port: "{{ db_port }}"
+    timeout: 60
+
+- name: Установка java
+  ansible.builtin.apt:
+    name: "{{ java_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    install_recommends: false
+
+- name: Создание пользователя приложения
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Создание директорий приложения
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0755"
+  loop:
+    - "{{ app_dir }}"
+    - "{{ app_dir }}/config"
+    - "{{ app_dir }}/logs"
+
+- name: Распаковка приложения
+  ansible.builtin.unarchive:
+    src: "{{ app_archive }}"
+    dest: "{{ app_dir }}"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+  notify: Остановка приложения
+
+- name: Конфигурация приложения
+  ansible.builtin.template:
+    src: application.properties.j2
+    dest: "{{ app_dir }}/config/application.properties"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0600"
+  notify: Остановка приложения
+
+- name: Скрипты запуска и остановки
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ app_dir }}/{{ item }}"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0755"
+  loop:
+    - start.sh
+    - stop.sh
+
+- name: Применение изменений
+  ansible.builtin.meta: flush_handlers
+
+- name: Запуск приложения
+  ansible.builtin.command: "{{ app_dir }}/start.sh"
+  become_user: "{{ app_user }}"
+  register: app_start
+  changed_when: "'уже запущено' not in app_start.stdout"
+
+- name: Проверка работоспособности приложения
+  ansible.builtin.uri:
+    url: "http://localhost:{{ app_port }}/health"
+    return_content: true
+  register: app_health
+  until: app_health.status == 200
+  retries: 30
+  delay: 2
+
+- name: Ответ приложения
+  ansible.builtin.debug:
+    msg: "{{ app_health.content }}"

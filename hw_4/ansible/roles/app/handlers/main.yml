@@ -1,0 +1,3 @@
+- name: Остановка приложения
+  ansible.builtin.command: "{{ app_dir }}/stop.sh"
+  become_user: "{{ app_user }}"
