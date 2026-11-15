@@ -1,0 +1,44 @@
+- name: Установка nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Удаление стандартного сайта
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Перезагрузка nginx
+
+- name: Конфигурация проксирования на приложение
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: /etc/nginx/conf.d/app.conf
+    mode: "0644"
+  notify: Перезагрузка nginx
+
+- name: Проверка конфигурации nginx
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Запуск nginx
+  ansible.builtin.service:
+    name: nginx
+    state: started
+
+- name: Применение изменений
+  ansible.builtin.meta: flush_handlers
+
+- name: Проверка работы приложения через nginx
+  ansible.builtin.uri:
+    url: http://localhost/health
+    return_content: true
+  register: nginx_health
+  until: nginx_health.status == 200
+  retries: 10
+  delay: 2
+
+- name: Ответ приложения через nginx
+  ansible.builtin.debug:
+    msg: "{{ nginx_health.content }}"

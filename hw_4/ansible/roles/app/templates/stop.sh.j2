@@ -1,0 +1,25 @@
+#!/bin/bash
+
+APP_DIR={{ app_dir }}
+PID_FILE=$APP_DIR/app.pid
+
+if [ ! -f $PID_FILE ] || ! kill -0 $(cat $PID_FILE) 2>/dev/null; then
+    echo "Приложение не запущено"
+    rm -f $PID_FILE
+    exit 0
+fi
+
+PID=$(cat $PID_FILE)
+kill $PID
+
+for i in $(seq 1 30); do
+    if ! kill -0 $PID 2>/dev/null; then
+        rm -f $PID_FILE
+        echo "Приложение остановлено"
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "Ошибка: приложение не остановилось за 30 секунд"
+exit 1

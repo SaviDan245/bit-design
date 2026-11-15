@@ -1,0 +1,13 @@
+app_user: app
+app_dir: /opt/app
+app_archive: /artifacts/app.tar.gz
+java_package: openjdk-21-jre-headless
+
+min_memory_mb: 512
+min_disk_mb: 1024
+
+db_host: db
+db_port: 5432
+db_name: "{{ lookup('env', 'POSTGRES_DB') }}"
+db_user: "{{ lookup('env', 'POSTGRES_USER') }}"
+db_password: "{{ lookup('env', 'POSTGRES_PASSWORD') }}"
